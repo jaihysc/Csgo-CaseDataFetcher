@@ -14,10 +14,8 @@ namespace Discord_UncrateGO_SkinCasesGenerator
         {
             //Fetch
             List<string> pages = await HtmlFetcher.FetchAscending("https://csgostash.com/case/", 500, 300);
-            Logger.LogToFile(pages, @"C:\Users\Johnny Cai\Desktop\test.txt");
 
             //This for debug only
-            //List<string> pages = new List<string> {System.IO.File.ReadAllText(@"C:\Users\Johnny Cai\Desktop\test.txt") };
             //pages = string.Join("", pages).Split(new[] { @"<!DOCTYPE html>" }, StringSplitOptions.None).ToList();
 
             Dictionary<string, CaseData> csgoData = new Dictionary<string, CaseData>();
@@ -155,7 +153,6 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
             //Follow links pulled above to get the names of the actual knives
             List<string> knifeDataList = await HtmlFetcher.FetchUrls(knifeUrls, 10);
-            //Logger.LogToFile(knifeDataList, @"C:\Users\Johnny Cai\Desktop\knifePagesData.html");
 
             Logger.Log("Extracting individual knife data from HTML...");
 

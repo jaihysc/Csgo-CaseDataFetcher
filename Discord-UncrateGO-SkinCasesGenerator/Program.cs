@@ -30,16 +30,14 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             //HtmlFetcher fetcher = new HtmlFetcher(@"Sorry, the page you are looking for could not be found.");
             //var returnList = await fetcher.FetchAscending("https://csgostash.com/case/");
 
-            //string text = System.IO.File.ReadAllText(@"C:\Users\Johnny Cai\Desktop\test.txt");
             //var result = HtmlParser.ParseHtml(text, "//td/input");
 
             //var result = await HtmlParser.ParseCases();
 
             //var str = new List<string> {JsonConvert.SerializeObject(result)};
-            //Logger.LogToFile(str, @"C:\Users\Johnny Cai\Desktop\skinResultJson.txt");
 
             var result = await HtmlParser.ParseKnives(GlobalKnifeList);
-            Logger.LogToFile(JsonConvert.SerializeObject(result), @"C:\Users\Johnny Cai\Desktop\knifeData.txt");
+            Logger.LogToFile(JsonConvert.SerializeObject(result), @"path");
             //foreach (var s in result.Values)
             //{
             //    Console.WriteLine(s.CaseName);
