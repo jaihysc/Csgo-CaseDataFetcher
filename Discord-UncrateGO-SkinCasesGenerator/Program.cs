@@ -25,7 +25,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             "Shadow+Daggers" //Commented out for testing with only 1 knife
         };
 
-        static async Task Main()
+        static async Task Main(string[] args)
         {
             //HtmlFetcher fetcher = new HtmlFetcher(@"Sorry, the page you are looking for could not be found.");
             //var returnList = await fetcher.FetchAscending("https://csgostash.com/case/");
