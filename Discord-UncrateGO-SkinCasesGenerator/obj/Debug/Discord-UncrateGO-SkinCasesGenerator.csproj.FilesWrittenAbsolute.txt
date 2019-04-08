@@ -1,8 +1,0 @@
-/home/johnny/Documents/CSharp/Csgo-CaseDataGenerator/Discord-UncrateGO-SkinCasesGenerator/obj/Debug/.NETFramework,Version=v4.7.1.AssemblyAttribute.cs
-/home/johnny/Documents/CSharp/Csgo-CaseDataGenerator/Discord-UncrateGO-SkinCasesGenerator/bin/Debug/Discord-UncrateGO-SkinCasesGenerator.exe.config
-/home/johnny/Documents/CSharp/Csgo-CaseDataGenerator/Discord-UncrateGO-SkinCasesGenerator/bin/Debug/Discord-UncrateGO-SkinCasesGenerator.pdb
-/home/johnny/Documents/CSharp/Csgo-CaseDataGenerator/Discord-UncrateGO-SkinCasesGenerator/bin/Debug/Discord-UncrateGO-SkinCasesGenerator.exe
-/home/johnny/Documents/CSharp/Csgo-CaseDataGenerator/Discord-UncrateGO-SkinCasesGenerator/obj/Debug/Discord-UncrateGO-SkinCasesGenerator.exe
-/home/johnny/Documents/CSharp/Csgo-CaseDataGenerator/Discord-UncrateGO-SkinCasesGenerator/obj/Debug/Discord-UncrateGO-SkinCasesGenerator.pdb
-/home/johnny/Documents/CSharp/Csgo-CaseDataGenerator/Discord-UncrateGO-SkinCasesGenerator/bin/Debug/HtmlAgilityPack.dll
-/home/johnny/Documents/CSharp/Csgo-CaseDataGenerator/Discord-UncrateGO-SkinCasesGenerator/bin/Debug/Newtonsoft.Json.dll
