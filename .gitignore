@@ -2,5 +2,7 @@
 /.vs
 /.idea
 /Discord-UncrateGO-SkinCasesGenerator.sln.DotSettings.user
+/Discord-UncrateGO-SkinCasesGenerator/Discord-UncrateGO-SkinCasesGenerator.csproj.DotSettings
 /Discord-UncrateGO-SkinCasesGenerator/bin
 /Discord-UncrateGO-SkinCasesGenerator/obj
+/packages
