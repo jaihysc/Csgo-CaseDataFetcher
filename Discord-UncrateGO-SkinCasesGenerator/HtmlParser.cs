@@ -13,7 +13,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
         public static async Task<Dictionary<string, CaseData>> ParseCases()
         {
             //Fetch
-            List<string> pages = await HtmlFetcher.FetchAscending("https://csgostash.com/case/", 500, 300);
+            List<string> pages = await HtmlFetcher.FetchAscending("https://csgostash.com/case/", 30, 300);
 
             //This for debug only
             //pages = string.Join("", pages).Split(new[] { @"<!DOCTYPE html>" }, StringSplitOptions.None).ToList();
@@ -83,7 +83,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                             caseData.CaseCollection = caseCollection;
 
                             //Add items for case as list in dictionary if it does not exist
-                            if (!csgoData.TryGetValue(caseName.ToLower(), out _)) csgoData.Add(caseName.ToLower(), caseData);
+                            if (!csgoData.TryGetValue(caseName.ToLower(), out _)) csgoData.Add(caseName, caseData);
                         }
                         catch (Exception)
                         {

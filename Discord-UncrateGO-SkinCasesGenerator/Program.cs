@@ -22,34 +22,43 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             "Huntsman+Knife",
             "Karambit",
             "M9+Bayonet",
-            "Shadow+Daggers" //Commented out for testing with only 1 knife
+            "Shadow+Daggers"
         };
 
         static async Task Main(string[] args)
         {
-            //HtmlFetcher fetcher = new HtmlFetcher(@"Sorry, the page you are looking for could not be found.");
-            //var returnList = await fetcher.FetchAscending("https://csgostash.com/case/");
+            Dictionary<string, HtmlParser.CaseData> caseResult = await HtmlParser.ParseCases(); //Index by lowercase case name
+            Dictionary<string, List<string>> knifeResult = await HtmlParser.ParseKnives(GlobalKnifeList);
+            
+            //Sort the items from knife result into the distinctive caseResult cases
+            Logger.Log("Sorting knife data into cases...");
+            foreach (KeyValuePair<string,List<string>> knife in knifeResult)
+            {
+                foreach (string knifeCases in knife.Value) //Iterate through each knife's cases and add it to the master case list
+                {
+                    if (caseResult.TryGetValue(knifeCases, out _)) //Ensure the case exists before trying to add to it
+                    {
+                        caseResult[knifeCases].CaseItems.Add(knife.Key);
+                    } 
+                }
+            }
+            
+//            Console.ForegroundColor = ConsoleColor.Gray;
+//            foreach (var item in result)
+//            {
+//                Console.WriteLine(item.Key);
+//                foreach (string s in item.Value)
+//                {
+//                    Console.WriteLine("     " + s);
+//                }
+//                
+//                Console.WriteLine("------------------");
+//            }
+            
+            Logger.Log("Writing to file...");
+            Logger.LogToFile(JsonConvert.SerializeObject(caseResult), @"path");
 
-            //var result = HtmlParser.ParseHtml(text, "//td/input");
-
-            //var result = await HtmlParser.ParseCases();
-
-            //var str = new List<string> {JsonConvert.SerializeObject(result)};
-
-            var result = await HtmlParser.ParseKnives(GlobalKnifeList);
-            Logger.LogToFile(JsonConvert.SerializeObject(result), @"path");
-            //foreach (var s in result.Values)
-            //{
-            //    Console.WriteLine(s.CaseName);
-            //    Console.WriteLine(s.CaseCollection);
-            //    foreach (var item in s.CaseItems)
-            //    {
-            //        Console.WriteLine(item);
-            //    }
-
-            //    Console.WriteLine();
-            //}
-
+            Console.WriteLine("Press ENTER to exit");
             Console.ReadLine();
         }
     }

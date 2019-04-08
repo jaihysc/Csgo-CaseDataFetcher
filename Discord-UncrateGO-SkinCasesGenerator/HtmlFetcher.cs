@@ -20,7 +20,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
         /// <summary>
         /// Fetches from the specified URL with an ascending index
         /// </summary>
-        public async Task<List<string>> FetchAscending(string baseUrl, int delay = 1000, int stopIndex = 0)
+        public async Task<List<string>> FetchAscending(string baseUrl, int delay = 1000, int stopIndex = 50)
         {
             List<string> fetchedPages = new List<string>();
             bool fetchCases = true;
@@ -78,7 +78,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             foreach (var url in urList)
             {
                 string result = await RetrieveFromUrl(url);
-                Logger.Log($"Fetched site at URL {url}");
+                Logger.Log($"Fetched site at URL {url}", Logger.LogLevel.Debug);
 
                 resultList.Add(result);
 
