@@ -1,0 +1,4 @@
+#Ignore unnecessary files
+/.vs
+/.idea
+/Discord-UncrateGO-SkinCasesGenerator.sln.DotSettings.user
