@@ -17,10 +17,15 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             _errorPage = errorPage;
         }
 
+        public HtmlFetcher()
+        {
+            _errorPage = null;
+        }
+
         /// <summary>
         /// Fetches from the specified URL with an ascending index
         /// </summary>
-        public async Task<List<string>> FetchAscending(string baseUrl, int delay = 1000, int stopIndex = 50)
+        public async Task<List<string>> FetchAscending(string baseUrl, int delay = 1000, int stopIndex = 0)
         {
             List<string> fetchedPages = new List<string>();
             bool fetchCases = true;
@@ -32,7 +37,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                 string result = await RetrieveFromUrl(url);
 
                 //If stop index is not set and the result is a 404 then stop fetching
-                if (stopIndex == 0 && result.Contains(_errorPage)) fetchCases = false;
+                if (_errorPage != null && stopIndex == 0 && result.Contains(_errorPage)) fetchCases = false;
                 if (stopIndex != 0 && index >= stopIndex) fetchCases = false;
 
                 Logger.Log($"Fetched site index {index}", Logger.LogLevel.Debug);
@@ -55,7 +60,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
         /// <param name="urlFillers"></param>
         /// <param name="delay"></param>
         /// <returns></returns>
-        public async Task<List<string>> FetchUrlFillers(string baseUrl, List<string> urlFillers, int delay = 1000)
+        public static async Task<List<string>> FetchUrlFillers(string baseUrl, List<string> urlFillers, int delay = 1000)
         {
             List<string> resultList = new List<string>();
             foreach (var urlFiller in urlFillers)
@@ -72,7 +77,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             return resultList;
         }
 
-        public async Task<List<string>> FetchUrls(List<string> urList, int delay = 1000)
+        public static async Task<List<string>> FetchUrls(List<string> urList, int delay = 1000)
         {
             List<string> resultList = new List<string>();
             foreach (var url in urList)

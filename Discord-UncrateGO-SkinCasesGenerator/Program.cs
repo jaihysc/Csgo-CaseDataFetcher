@@ -27,36 +27,26 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
         static async Task Main(string[] args)
         {
-            Dictionary<string, HtmlParser.CaseData> caseResult = await HtmlParser.ParseCases(); //Index by lowercase case name
-            Dictionary<string, List<string>> knifeResult = await HtmlParser.ParseKnives(GlobalKnifeList);
-            
-            //Sort the items from knife result into the distinctive caseResult cases
-            Logger.Log("Sorting knife data into cases...");
-            foreach (KeyValuePair<string,List<string>> knife in knifeResult)
-            {
-                foreach (string knifeCases in knife.Value) //Iterate through each knife's cases and add it to the master case list
-                {
-                    if (caseResult.TryGetValue(knifeCases, out _)) //Ensure the case exists before trying to add to it
-                    {
-                        caseResult[knifeCases].CaseItems.Add(knife.Key);
-                    } 
-                }
-            }
-            
-//            Console.ForegroundColor = ConsoleColor.Gray;
-//            foreach (var item in result)
+//            Dictionary<string, HtmlParser.CaseData> caseResult = await HtmlParser.ParseCases(); //Index by lowercase case name
+//            Dictionary<string, List<string>> knifeResult = await HtmlParser.ParseKnives(GlobalKnifeList);
+//            
+//            //Sort the items from knife result into the distinctive caseResult cases
+//            Logger.Log("Sorting knife data into cases...");
+//            foreach (KeyValuePair<string,List<string>> knife in knifeResult)
 //            {
-//                Console.WriteLine(item.Key);
-//                foreach (string s in item.Value)
+//                foreach (string knifeCases in knife.Value) //Iterate through each knife's cases and add it to the master case list
 //                {
-//                    Console.WriteLine("     " + s);
+//                    if (caseResult.TryGetValue(knifeCases, out _)) //Ensure the case exists before trying to add to it
+//                    {
+//                        caseResult[knifeCases].CaseItems.Add(knife.Key);
+//                    } 
 //                }
-//                
-//                Console.WriteLine("------------------");
 //            }
+
+            var result = await HtmlParser.ParseSouvenirs();
             
             Logger.Log("Writing to file...");
-            Logger.LogToFile(JsonConvert.SerializeObject(caseResult), @"path");
+//            Logger.LogToFile(JsonConvert.SerializeObject(caseResult), @"path");
 
             Console.WriteLine("Press ENTER to exit");
             Console.ReadLine();

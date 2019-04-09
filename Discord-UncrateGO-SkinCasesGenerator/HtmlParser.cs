@@ -3,17 +3,18 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
+using Newtonsoft.Json;
 
 namespace Discord_UncrateGO_SkinCasesGenerator
 {
     class HtmlParser
     {
-        private static readonly HtmlFetcher HtmlFetcher = new HtmlFetcher("Sorry, the page you are looking for could not be found.");
-
         public static async Task<Dictionary<string, CaseData>> ParseCases()
         {
+            HtmlFetcher htmlFetcher = new HtmlFetcher("Sorry, the page you are looking for could not be found.");
+        
             //Fetch
-            List<string> pages = await HtmlFetcher.FetchAscending("https://csgostash.com/case/", 30, 300);
+            List<string> pages = await htmlFetcher.FetchAscending("https://csgostash.com/case/", 30, 300);
 
             //This for debug only
             //pages = string.Join("", pages).Split(new[] { @"<!DOCTYPE html>" }, StringSplitOptions.None).ToList();
@@ -105,6 +106,8 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
         public static async Task<Dictionary<string, List<string>>> ParseKnives(List<string> knifeList)
         {
+            HtmlFetcher htmlFetcher = new HtmlFetcher();
+
             Logger.Log("Fetching master knives HTML...");
 
             List<string> pages = await HtmlFetcher.FetchUrlFillers("https://csgostash.com/weapon/", knifeList, 50);
@@ -201,6 +204,81 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             return knifeCaseData;
         }
 
+        public static async Task<Dictionary<string, List<string>>> ParseSouvenirs()
+        {
+            HtmlFetcher htmlFetcher = new HtmlFetcher();
+
+            List<string> pages = await htmlFetcher.FetchAscending("https://csgostash.com/containers/souvenir-packages?page=", 30, 2);
+            
+            Dictionary<string, List<string>> souvenirCollections = new Dictionary<string, List<string>>(); //Collection name -- Item list
+            //Parse through the souvenirs for names, and the collection
+            foreach (string page in pages)
+            {
+                HtmlDocument doc = new HtmlDocument();
+                doc.LoadHtml(page);
+                
+                //Filter to the class "well result-box nomargin"
+                List<string> filteredDivs = doc.DocumentNode.SelectNodes("html/body/div/div/div/div").Where(n =>
+                    n.Attributes["class"].Value.Contains("well result-box nomargin")).Select(n => n.InnerHtml).ToList();
+                
+                //Extract name and collection
+                foreach (string filteredDiv in filteredDivs)
+                {
+                    /*
+                    <a href="https://csgostash.com/item/13395/Katowice-2019-Nuke-Souvenir-Package">
+                       <h4>Katowice 2019 Nuke Souvenir Package</h4>
+                       <img class="img-responsive center-block" src="https://steamcommunity-a.akamaihd.net/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXU5A1PIYQNqhpOSV-fRPasw8rsWFxgKhNetb_3e1Y57OPafjBN09izq46enPK6YurQk2hVvcYi2u-W84qhiQOx_kVvYDzyJdWUJA88Ml_U-VfoxuzsjYj84sqZEQQDQg/256fx256f" alt="Katowice 2019 Nuke Souvenir Package">
+                       <div class="price margin-top-sm">
+                          <p class="nomargin"><span data-toggle="tooltip" data-placement="right" title="1 Key">CDN$ 5.08</span></p>
+                       </div>
+                    </a>
+                    <div class="btn-group-sm btn-group-justified">
+                       <a class="btn btn-default market-button-item" href="https://steamcommunity.com/market/listings/730/Katowice%202019%20Nuke%20Souvenir%20Package" target="_blank" rel="nofollow" data-gaevent="Katowice 2019 Nuke Souvenir Package">3956 Steam Market Listings</a>
+                    </div>
+                    <div class="containers-details-link">
+                       <p class="nomargin"><a href="https://csgostash.com/collection/The+2018+Nuke+Collection">
+                          <img src="https://csgostash.com/img/collections/the_2018_nuke_collection.png" class="collection-icon" alt="The 2018 Nuke Collection">
+                          The 2018 Nuke Collection</a>
+                       </p>
+                    </div>
+                    */
+                    HtmlDocument filteredDoc = new HtmlDocument();
+                    filteredDoc.LoadHtml(filteredDiv); //Exception is likely from loading invalid HTML
+
+                    string souvenirCaseName = "";
+                    string souvenirCaseCollection = "";
+                    try //Try catches because I can't be bothered to track down why this is causing an exception
+                    {
+                        //Extract case name
+                        souvenirCaseName =  filteredDoc.DocumentNode?.SelectNodes("a/h4").FirstOrDefault()?.InnerText;
+                        //Extract case collection
+                        souvenirCaseCollection = filteredDoc.DocumentNode?.SelectNodes("div/p/a").FirstOrDefault()?.InnerText
+                            .Replace("\n", ""); //Remove excess line break
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.Log("Error parsing souvenir case info", Logger.LogLevel.Error);
+                        Logger.Log("Information at time of error: " + filteredDiv, Logger.LogLevel.Debug);
+                    }
+                    
+                    //Add to souvenirCollections
+                    if (souvenirCaseCollection != null)
+                    {
+                        if (souvenirCollections.TryGetValue(souvenirCaseCollection, out _)) souvenirCollections[souvenirCaseCollection].Add(souvenirCaseName);
+                        else
+                        { //If souvenir collection does not exist, create one
+                            souvenirCollections.Add(souvenirCaseCollection, new List<string>
+                            {
+                                souvenirCaseName
+                            });
+                        }
+                    }
+                }
+            }
+
+            return souvenirCollections;
+        }
+        
         public class CaseData
         {
             public string CaseName { get; set; }
