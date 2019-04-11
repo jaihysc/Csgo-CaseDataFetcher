@@ -5,6 +5,8 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 {
     public class Logger
     {
+        private static readonly List<string> LogHistory = new List<string>();
+
         public static void Log(string message, LogLevel logLevel = LogLevel.Info)
         {
             string severity = "";
@@ -34,13 +36,23 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                     break;
             }
 
-            Console.WriteLine($"[{severity}] | " + message);
+            //Log the message
+            string msg = $"[{severity}] | " + message;
+
+            Console.WriteLine(msg);
+            LogHistory.Add(msg);
+
             Console.ForegroundColor = color;
         }
 
         public enum LogLevel { Debug, Info, Warning, Error, Critical}
 
-        public static void LogToFile(List<string> messages, string path)
+        public static void FlushLogToFile(string path)
+        {
+            LogToFile(LogHistory, path);
+        }
+
+        public static void LogToFile(IEnumerable<string> messages, string path)
         {
             using (System.IO.StreamWriter file =
                 new System.IO.StreamWriter(path))

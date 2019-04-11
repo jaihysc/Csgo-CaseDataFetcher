@@ -9,113 +9,143 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 {
     class HtmlParser
     {
+        private static readonly List<string> GlobalKnifeList = new List<string> //TODO, read this from a file
+        {
+            "Navaja+Knife",
+            "Stiletto+Knife",
+            "Talon+Knife",
+            "Ursus+Knife",
+            "Bayonet",
+            "Bowie+Knife",
+            "Butterfly+Knife",
+            "Falchion+Knife",
+            "Flip+Knife",
+            "Gut+Knife",
+            "Huntsman+Knife",
+            "Karambit",
+            "M9+Bayonet",
+            "Shadow+Daggers"
+        };
+
         public static async Task<CsgoItemData> FetchCaseItemData()
         {
-            
-            return null;
+            CsgoItemData csgoItemData = new CsgoItemData();
+
+            Dictionary<string, CaseData> caseResult = await ParseCases();
+            Dictionary<string, List<string>> knifeResult = await ParseKnives(GlobalKnifeList); //TODO These methods should be more redundant to changes. Checking for number of pages etc.
+
+            //sort the items from knife result into the distinctive caseResult cases
+            Logger.Log("sorting knife data into cases...");
+            foreach (var knife in knifeResult)
+            {
+                foreach (string knifeCases in knife.Value) //iterate through each knife's cases and add it to the master case list
+                {
+                    if (caseResult.TryGetValue(knifeCases, out _)) //ensure the case exists before trying to add to it
+                    {
+                        caseResult[knifeCases].CaseItems.Add(knife.Key);
+                    }
+                }
+            }
+
+            csgoItemData.CaseData = caseResult.Values.ToList();
+
+            //TODO fetch all collections
+            var souvenirResult = await ParseSouvenirs();
+            //TODO generate a dictionary containing all the collections and whether they are souvenirs
+
+            return csgoItemData;
         }
-        public static async Task<Dictionary<string, CaseData>> ParseCases()
+
+        private static async Task<Dictionary<string, CaseData>> ParseCases()
         {
             HtmlFetcher htmlFetcher = new HtmlFetcher("Sorry, the page you are looking for could not be found.");
         
-            //Fetch
-            List<string> pages = await htmlFetcher.FetchAscending("https://csgostash.com/case/", 30, 300);
-
-            //This for debug only
-            //pages = string.Join("", pages).Split(new[] { @"<!DOCTYPE html>" }, StringSplitOptions.None).ToList();
+            List<string> pages = await htmlFetcher.FetchAscending("https://csgostash.com/case/", 30, 18);
 
             Dictionary<string, CaseData> csgoData = new Dictionary<string, CaseData>();
             //Parse
             int index = 1; //one based to represent the website numbering scheme
             foreach (string page in pages)
             {
-                try
+                //Leave if the page is empty
+                if (!string.IsNullOrWhiteSpace(page))
                 {
-                    //Leave if the page is empty
-                    if (!string.IsNullOrWhiteSpace(page))
+                    //Separate single string with line breaks into array
+                    string[] lines = page.Split(
+                        new[] { "\r\n", "\r", "\n" },
+                        StringSplitOptions.None
+                    );
+
+                    CaseData caseData = new CaseData();
+
+                    //Filter to lines containing " | "
+                    List<string> fLines = lines.Where(l => l.Contains(" | ")).ToList();
+                    //Select the text out of the html
+                    foreach (var dataDuoLines in fLines) //The 2 lines containing the item name and collection
                     {
-
-                        //Separate single string with line breaks into array
-                        string[] lines = page.Split(
-                            new[] { "\r\n", "\r", "\n" },
-                            StringSplitOptions.None
-                        );
-
-                        //Filter to lines containing " | "
-                        List<string> fLines = lines.Where(l => l.Contains(" | ")).ToList();
-
-                        CaseData caseData = new CaseData
-                        {
-                            CaseItems = new List<string>()
-                        };
-                        //Select the text out of the html
-                        foreach (var dataDuoLines in fLines)
-                        {
-                            try
-                            {
-                                HtmlDocument duoHtml = new HtmlDocument();
-                                duoHtml.LoadHtml(dataDuoLines);
-
-                                //Get the data out of the <a3> tags
-                                var duoLineData = duoHtml.DocumentNode.SelectNodes("/h3/a").ToList()
-                                    .Select(i => i.InnerHtml);
-
-                                //Concat into item name
-                                caseData.CaseItems.Add(string.Join(" | ", duoLineData)); //Weapon name | skin name
-                            }
-                            catch (Exception)
-                            {
-                                Logger.Log("Error parsing html item data | Index " + index, Logger.LogLevel.Error);
-                            }
-
-                        }
-
                         try
                         {
-                            HtmlDocument htmlDoc = new HtmlDocument();
-                            htmlDoc.LoadHtml(page);
-
+                            HtmlDocument duoHtml = new HtmlDocument();
+                            duoHtml.LoadHtml(dataDuoLines);
 
                             //Get the data out of the <a3> tags
-                            HtmlNode caseNodeData =
-                                htmlDoc.DocumentNode.SelectSingleNode(
-                                    "//div[@class='inline-middle collapsed-top-margin']"); //inline-middle collapsed-top-margin
+                            HtmlNodeCollection duoLineDataNodes = duoHtml.DocumentNode.SelectNodes("/h3/a");
+                            if (duoLineDataNodes != null && duoLineDataNodes.Any())
+                            {
+                                List<string> duoLineData = duoLineDataNodes.Select(i => i.InnerHtml).ToList();
 
-                            string caseName = caseNodeData.SelectSingleNode("h1").InnerText;
-                            string caseCollection = caseNodeData.SelectSingleNode("h4").InnerText;
-
-                            //Set the data for the return class
-                            caseData.CaseName = caseName;
-                            caseData.CaseCollection = caseCollection;
-
-                            //Add items for case as list in dictionary if it does not exist
-                            if (!csgoData.TryGetValue(caseName.ToLower(), out _)) csgoData.Add(caseName, caseData);
+                                //Concat into item name
+                                if (duoLineData.Any()) caseData.CaseItems.Add(string.Join(" | ", duoLineData)); //Weapon name | skin name
+                            }
                         }
                         catch (Exception)
                         {
-                            Logger.Log("Error parsing page name / collection data | Index " + index, Logger.LogLevel.Error);
+                            Logger.Log("Error parsing html item data | Index " + index, Logger.LogLevel.Error);
+                            Logger.Log("Data at time of error " + dataDuoLines, Logger.LogLevel.Debug);
                         }
-
-                        index++;
                     }
-                }
-                catch (Exception)
-                {
-                    Logger.Log("Error parsing page | Index " + index, Logger.LogLevel.Error);
-                }
 
+                    //Get case name and collection
+                    try
+                    {
+                        HtmlDocument htmlDoc = new HtmlDocument();
+                        htmlDoc.LoadHtml(page);
+
+                        //Get the data out of the <a3> tags
+                        HtmlNode caseNodeData =
+                            htmlDoc.DocumentNode.SelectSingleNode(
+                                "//div[@class='inline-middle collapsed-top-margin']"); //inline-middle collapsed-top-margin
+
+                        string caseName = ExtractStringFromTags(caseNodeData, "h1", NodeSection.InnerText);
+                        string caseCollection = ExtractStringFromTags(caseNodeData, "h4", NodeSection.InnerText); ;
+
+                        //Set the data for the return class
+                        caseData.CaseName = caseName;
+                        caseData.CaseCollection = caseCollection;
+
+                        //Add items for case as list in dictionary if it does not exist
+                        if (!csgoData.TryGetValue(caseName, out _)) csgoData.Add(caseName, caseData);
+                    }
+                    catch (Exception)
+                    {
+                        Logger.Log("Error parsing page name / collection data | Index " + index, Logger.LogLevel.Error);
+                        Logger.Log("Data at time of error " + page, Logger.LogLevel.Debug);
+                    }
+
+                    index++;
+                }
             }
 
             return csgoData;
         }
 
-        public static async Task<Dictionary<string, List<string>>> ParseKnives(List<string> knifeList)
+        private static async Task<Dictionary<string, List<string>>> ParseKnives(List<string> knifeList)
         {
             HtmlFetcher htmlFetcher = new HtmlFetcher();
 
             Logger.Log("Fetching master knives HTML...");
 
-            List<string> pages = await HtmlFetcher.FetchUrlFillers("https://csgostash.com/weapon/", knifeList, 50);
+            List<string> pages = await htmlFetcher.FetchUrlFillers("https://csgostash.com/weapon/", knifeList, 50);
 
             Logger.Log("Extracting individual knife URLs from HTML...");
 
@@ -178,15 +208,6 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                     Logger.Log("Unable to load HTML doc for knifeDataPage", Logger.LogLevel.Error);
                 }
 
-                ////Extracting knife cases <!--body/div1/div2/div1/div0/div0/div1/div1/div0--> <!--One with class "well skin-details-collection-container margin-top-med"-->
-                //var selectedNode = doc.DocumentNode.SelectNodes("html/body/div/div/div/div/div/div/div/div") 
-                //    .Where(n => n.InnerText.ToLower().Contains("expensive"))
-                //    .Where(n => n.InnerText.ToLower().Contains("least"))
-                //    .Where(n => n.InnerText.ToLower().Contains("most")).Select(i => i.InnerText).ToList();
-
-                //if (selectedNode.Count <= 0) //Code above does not work if knife only exists in one case, thus if it does not find anything, run this
-                //{
-
                 //Extracting case data
                 List<string> knifeCases = doc.DocumentNode.SelectNodes("html/body//p")
                     .Where(n => n.HasClass("collection-text-label")).Select(n => n.InnerHtml)
@@ -209,7 +230,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             return knifeCaseData;
         }
 
-        public static async Task<Dictionary<string, List<string>>> ParseSouvenirs()
+        private static async Task<Dictionary<string, List<string>>> ParseSouvenirs()
         {
             HtmlFetcher htmlFetcher = new HtmlFetcher();
 
@@ -229,6 +250,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                 //Extract name and collection
                 foreach (string filteredDiv in filteredDivs)
                 {
+                    #region Example response
                     /*
                     <a href="https://csgostash.com/item/13395/Katowice-2019-Nuke-Souvenir-Package">
                        <h4>Katowice 2019 Nuke Souvenir Package</h4>
@@ -247,6 +269,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                        </p>
                     </div>
                     */
+                    #endregion
                     HtmlDocument filteredDoc = new HtmlDocument();
                     filteredDoc.LoadHtml(filteredDiv); //Exception is likely from loading invalid HTML
 
@@ -255,10 +278,10 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                     try //Try catches because I can't be bothered to track down why this is causing an exception
                     {
                         //Extract case name
-                        souvenirCaseName =  filteredDoc.DocumentNode?.SelectNodes("a/h4").FirstOrDefault()?.InnerText;
+                        souvenirCaseName = ExtractStringFromTags(filteredDoc, "a/h4");
+
                         //Extract case collection
-                        souvenirCaseCollection = filteredDoc.DocumentNode?.SelectNodes("div/p/a").FirstOrDefault()?.InnerText
-                            .Replace("\n", ""); //Remove excess line break
+                        souvenirCaseCollection = ExtractStringFromTags(filteredDoc, "div/p/a").Replace("\n", ""); //Remove excess line break
                     }
                     catch
                     {
@@ -284,6 +307,77 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             return souvenirCollections;
         }
 
+        #region Helper Methods
+
+        /// <summary>
+        /// Extracts information from desired parts of specified html node in HtmlDocument
+        /// </summary>
+        /// <param name="doc"></param>
+        /// <param name="xpath"></param>
+        /// <param name="nodeSection"></param>
+        /// <returns></returns>
+        private static string ExtractStringFromTags(HtmlDocument doc, string xpath, NodeSection nodeSection = NodeSection.InnerText)
+        {
+            HtmlNodeCollection nodes = doc.DocumentNode.SelectNodes(xpath);
+
+            string returnStr = "";
+            if (nodes != null && nodes.Count > 0)
+            {
+                HtmlNode nodeEntry = nodes.FirstOrDefault();
+                if (nodeEntry != null)
+                {
+                    switch (nodeSection)
+                    {
+                        case NodeSection.InnerText:
+                            returnStr = nodeEntry.InnerText;
+                            break;
+                        case NodeSection.InnerHtml:
+                            returnStr = nodeEntry.InnerHtml;
+                            break;
+                        case NodeSection.OuterHtml:
+                            returnStr = nodeEntry.OuterHtml;
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException(nameof(nodeSection), nodeSection, "Desired nodeSection not found");
+                    }
+                }
+            }
+
+            return returnStr;
+        }
+        private static string ExtractStringFromTags(HtmlNode node, string xpath, NodeSection nodeSection = NodeSection.InnerText)
+        {
+            HtmlNodeCollection nodes = node.SelectNodes(xpath);
+
+            string returnStr = "";
+            if (nodes != null && nodes.Count > 0)
+            {
+                HtmlNode nodeEntry = nodes.FirstOrDefault();
+                if (nodeEntry != null)
+                {
+                    switch (nodeSection)
+                    {
+                        case NodeSection.InnerText:
+                            returnStr = nodeEntry.InnerText;
+                            break;
+                        case NodeSection.InnerHtml:
+                            returnStr = nodeEntry.InnerHtml;
+                            break;
+                        case NodeSection.OuterHtml:
+                            returnStr = nodeEntry.OuterHtml;
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException(nameof(nodeSection), nodeSection, "Desired nodeSection not found");
+                    }
+                }
+            }
+
+            return returnStr;
+        }
+
+        private enum NodeSection { InnerText, InnerHtml, OuterHtml}
+
+        #endregion
         public class CsgoItemData
         {
             public CsgoItemData()
@@ -297,6 +391,11 @@ namespace Discord_UncrateGO_SkinCasesGenerator
         }
         public class CaseData
         {
+            public CaseData()
+            {
+                CaseItems = new List<string>();
+            }
+
             public string CaseName { get; set; }
             public string CaseCollection { get; set; }
             public List<string> CaseItems { get; set; }
@@ -304,6 +403,11 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
         public class CollectionData
         {
+            public CollectionData()
+            {
+                CollectionItems = new List<string>();
+            }
+
             public string ColletionName { get; set; }
             public bool IsSouvenir { get; set; }
             public List<string> CollectionItems { get; set; }

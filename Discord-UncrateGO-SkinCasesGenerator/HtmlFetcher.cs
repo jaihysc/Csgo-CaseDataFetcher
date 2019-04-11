@@ -60,7 +60,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
         /// <param name="urlFillers"></param>
         /// <param name="delay"></param>
         /// <returns></returns>
-        public static async Task<List<string>> FetchUrlFillers(string baseUrl, List<string> urlFillers, int delay = 1000)
+        public async Task<List<string>> FetchUrlFillers(string baseUrl, List<string> urlFillers, int delay = 1000)
         {
             List<string> resultList = new List<string>();
             foreach (var urlFiller in urlFillers)
