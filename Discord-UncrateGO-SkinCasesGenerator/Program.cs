@@ -43,7 +43,10 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 //                }
 //            }
 
+            //TODO fetch all collections
             var result = await HtmlParser.ParseSouvenirs();
+            //TODO generate a dictionary containing all the collections and whether they are souvenirs
+            
             
             Logger.Log("Writing to file...");
 //            Logger.LogToFile(JsonConvert.SerializeObject(caseResult), @"path");

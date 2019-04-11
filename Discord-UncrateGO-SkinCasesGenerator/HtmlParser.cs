@@ -9,6 +9,11 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 {
     class HtmlParser
     {
+        public static async Task<CsgoItemData> FetchCaseItemData()
+        {
+            
+            return null;
+        }
         public static async Task<Dictionary<string, CaseData>> ParseCases()
         {
             HtmlFetcher htmlFetcher = new HtmlFetcher("Sorry, the page you are looking for could not be found.");
@@ -255,7 +260,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                         souvenirCaseCollection = filteredDoc.DocumentNode?.SelectNodes("div/p/a").FirstOrDefault()?.InnerText
                             .Replace("\n", ""); //Remove excess line break
                     }
-                    catch (Exception e)
+                    catch
                     {
                         Logger.Log("Error parsing souvenir case info", Logger.LogLevel.Error);
                         Logger.Log("Information at time of error: " + filteredDiv, Logger.LogLevel.Debug);
@@ -278,12 +283,30 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
             return souvenirCollections;
         }
-        
+
+        public class CsgoItemData
+        {
+            public CsgoItemData()
+            {
+                CaseData = new List<CaseData>();
+                CollectionData = new List<CollectionData>();
+            }
+
+            public List<CaseData> CaseData { get; set; }
+            public List<CollectionData> CollectionData { get; set; }
+        }
         public class CaseData
         {
             public string CaseName { get; set; }
             public string CaseCollection { get; set; }
             public List<string> CaseItems { get; set; }
+        }
+
+        public class CollectionData
+        {
+            public string ColletionName { get; set; }
+            public bool IsSouvenir { get; set; }
+            public List<string> CollectionItems { get; set; }
         }
     }
 }

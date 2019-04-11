@@ -78,7 +78,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
         }
 
         public static async Task<List<string>> FetchUrls(List<string> urList, int delay = 1000)
-        {
+        {    
             List<string> resultList = new List<string>();
             foreach (var url in urList)
             {
