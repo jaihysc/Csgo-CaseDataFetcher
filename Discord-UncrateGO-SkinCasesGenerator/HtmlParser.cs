@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
-using Newtonsoft.Json;
 
 namespace Discord_UncrateGO_SkinCasesGenerator
 {
@@ -64,7 +63,6 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
             Dictionary<string, CaseData> csgoData = new Dictionary<string, CaseData>();
             //Parse
-            int index = 1; //one based to represent the website numbering scheme
             foreach (string page in pages)
             {
                 //Leave if the page is empty
@@ -83,56 +81,38 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                     //Select the text out of the html
                     foreach (var dataDuoLines in fLines) //The 2 lines containing the item name and collection
                     {
-                        try
-                        {
-                            HtmlDocument duoHtml = new HtmlDocument();
-                            duoHtml.LoadHtml(dataDuoLines);
+                        HtmlDocument duoHtml = new HtmlDocument();
+                        duoHtml.LoadHtml(dataDuoLines);
 
-                            //Get the data out of the <a3> tags
-                            HtmlNodeCollection duoLineDataNodes = duoHtml.DocumentNode.SelectNodes("/h3/a");
-                            if (duoLineDataNodes != null && duoLineDataNodes.Any())
-                            {
-                                List<string> duoLineData = duoLineDataNodes.Select(i => i.InnerHtml).ToList();
-
-                                //Concat into item name
-                                if (duoLineData.Any()) caseData.CaseItems.Add(string.Join(" | ", duoLineData)); //Weapon name | skin name
-                            }
-                        }
-                        catch (Exception)
+                        //Get the data out of the <a3> tags
+                        HtmlNodeCollection duoLineDataNodes = duoHtml.DocumentNode.SelectNodes("/h3/a");
+                        if (duoLineDataNodes != null && duoLineDataNodes.Any())
                         {
-                            Logger.Log("Error parsing html item data | Index " + index, Logger.LogLevel.Error);
-                            Logger.Log("Data at time of error " + dataDuoLines, Logger.LogLevel.Debug);
+                            List<string> duoLineData = duoLineDataNodes.Select(i => i.InnerHtml).ToList();
+
+                            //Concat into item name
+                            if (duoLineData.Any()) caseData.CaseItems.Add(string.Join(" | ", duoLineData)); //Weapon name | skin name
                         }
                     }
 
                     //Get case name and collection
-                    try
-                    {
-                        HtmlDocument htmlDoc = new HtmlDocument();
-                        htmlDoc.LoadHtml(page);
+                    HtmlDocument htmlDoc = new HtmlDocument();
+                    htmlDoc.LoadHtml(page);
 
-                        //Get the data out of the <a3> tags
-                        HtmlNode caseNodeData =
-                            htmlDoc.DocumentNode.SelectSingleNode(
-                                "//div[@class='inline-middle collapsed-top-margin']"); //inline-middle collapsed-top-margin
+                    //Get the data out of the <a3> tags
+                    HtmlNode caseNodeData =
+                        htmlDoc.DocumentNode.SelectSingleNode(
+                            "//div[@class='inline-middle collapsed-top-margin']"); //inline-middle collapsed-top-margin
 
-                        string caseName = ExtractStringFromTags(caseNodeData, "h1", NodeSection.InnerText);
-                        string caseCollection = ExtractStringFromTags(caseNodeData, "h4", NodeSection.InnerText); ;
+                    string caseName = ExtractStringFromTags(caseNodeData, "h1");
+                    string caseCollection = ExtractStringFromTags(caseNodeData, "h4");
 
-                        //Set the data for the return class
-                        caseData.CaseName = caseName;
-                        caseData.CaseCollection = caseCollection;
+                    //Set the data for the return class
+                    caseData.CaseName = caseName;
+                    caseData.CaseCollection = caseCollection;
 
-                        //Add items for case as list in dictionary if it does not exist
-                        if (!csgoData.TryGetValue(caseName, out _)) csgoData.Add(caseName, caseData);
-                    }
-                    catch (Exception)
-                    {
-                        Logger.Log("Error parsing page name / collection data | Index " + index, Logger.LogLevel.Error);
-                        Logger.Log("Data at time of error " + page, Logger.LogLevel.Debug);
-                    }
-
-                    index++;
+                    //Add items for case as list in dictionary if it does not exist
+                    if (!csgoData.TryGetValue(caseName, out _)) csgoData.Add(caseName, caseData);
                 }
             }
 
@@ -199,14 +179,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             {
                 HtmlDocument doc = new HtmlDocument();
 
-                try
-                {
-                    doc.LoadHtml(knifeDataPage);
-                }
-                catch (Exception)
-                {
-                    Logger.Log("Unable to load HTML doc for knifeDataPage", Logger.LogLevel.Error);
-                }
+                doc.LoadHtml(knifeDataPage);
 
                 //Extracting case data
                 List<string> knifeCases = doc.DocumentNode.SelectNodes("html/body//p")
@@ -275,31 +248,21 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
                     string souvenirCaseName = "";
                     string souvenirCaseCollection = "";
-                    try //Try catches because I can't be bothered to track down why this is causing an exception
-                    {
-                        //Extract case name
-                        souvenirCaseName = ExtractStringFromTags(filteredDoc, "a/h4");
 
-                        //Extract case collection
-                        souvenirCaseCollection = ExtractStringFromTags(filteredDoc, "div/p/a").Replace("\n", ""); //Remove excess line break
-                    }
-                    catch
-                    {
-                        Logger.Log("Error parsing souvenir case info", Logger.LogLevel.Error);
-                        Logger.Log("Information at time of error: " + filteredDiv, Logger.LogLevel.Debug);
-                    }
-                    
+                    //Extract case name
+                    souvenirCaseName = ExtractStringFromTags(filteredDoc, "a/h4");
+
+                    //Extract case collection
+                    souvenirCaseCollection = ExtractStringFromTags(filteredDoc, "div/p/a").Replace("\n", ""); //Remove excess line break
+
                     //Add to souvenirCollections
-                    if (souvenirCaseCollection != null)
-                    {
-                        if (souvenirCollections.TryGetValue(souvenirCaseCollection, out _)) souvenirCollections[souvenirCaseCollection].Add(souvenirCaseName);
-                        else
-                        { //If souvenir collection does not exist, create one
-                            souvenirCollections.Add(souvenirCaseCollection, new List<string>
-                            {
-                                souvenirCaseName
-                            });
-                        }
+                    if (souvenirCollections.TryGetValue(souvenirCaseCollection, out _)) souvenirCollections[souvenirCaseCollection].Add(souvenirCaseName);
+                    else
+                    { //If souvenir collection does not exist, create one
+                        souvenirCollections.Add(souvenirCaseCollection, new List<string>
+                        {
+                            souvenirCaseName
+                        });
                     }
                 }
             }
