@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Discord_UncrateGO_SkinCasesGenerator
 {
-    public class Logger
+    public static class Logger
     {
         private static readonly List<string> LogHistory = new List<string>();
 

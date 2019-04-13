@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
 
 namespace Discord_UncrateGO_SkinCasesGenerator
 {
-    class HtmlParser
+    internal static class HtmlParser
     {
         private static readonly List<string> GlobalKnifeList = new List<string> //TODO, read this from a file
         {
@@ -30,18 +31,21 @@ namespace Discord_UncrateGO_SkinCasesGenerator
         {
             CsgoItemData csgoItemData = new CsgoItemData();
 
-            Dictionary<string, CaseData> caseResult = await ParseCases();
-            Dictionary<string, List<string>> knifeResult = await ParseKnives(GlobalKnifeList); //TODO These methods should be more redundant to changes. Checking for number of pages etc.
+            SiteData data = await GetSiteData();
+
+            //TODO These methods should be more redundant to changes. pull the front page for the number of cases, pages, etc
+            Dictionary<string, DataCollection> caseResult = await ParseCases(data.CaseUrLs);
+            Dictionary<string, List<string>> knifeResult = await ParseKnives(GlobalKnifeList); 
 
             //sort the items from knife result into the distinctive caseResult cases
             Logger.Log("sorting knife data into cases...");
-            foreach (var knife in knifeResult)
+            foreach (KeyValuePair<string, List<string>> knife in knifeResult)
             {
                 foreach (string knifeCases in knife.Value) //iterate through each knife's cases and add it to the master case list
                 {
                     if (caseResult.TryGetValue(knifeCases, out _)) //ensure the case exists before trying to add to it
                     {
-                        caseResult[knifeCases].CaseItems.Add(knife.Key);
+                        caseResult[knifeCases].Items.Add(knife.Key);
                     }
                 }
             }
@@ -49,19 +53,58 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             csgoItemData.CaseData = caseResult.Values.ToList();
 
             //TODO fetch all collections
-            var souvenirResult = await ParseSouvenirs();
+            csgoItemData.SouvenirData = await ParseSouvenirs();
             //TODO generate a dictionary containing all the collections and whether they are souvenirs
 
             return csgoItemData;
         }
 
-        private static async Task<Dictionary<string, CaseData>> ParseCases()
+        /// <summary>
+        /// Fetches and returns information about the site that would later be used to parse cases
+        /// </summary>
+        /// <returns></returns>
+        private static async Task<SiteData> GetSiteData()
         {
-            HtmlFetcher htmlFetcher = new HtmlFetcher("Sorry, the page you are looking for could not be found.");
-        
-            List<string> pages = await htmlFetcher.FetchAscending("https://csgostash.com/case/", 30, 18);
+            string site = await HtmlFetcher.RetrieveFromUrl("https://csgostash.com/");
 
-            Dictionary<string, CaseData> csgoData = new Dictionary<string, CaseData>();
+            var doc = new HtmlDocument();
+            doc.LoadHtml(site);
+
+            //Target the li tags with a class of dropdown
+            IEnumerable<HtmlNode> liData =
+                doc.DocumentNode.SelectNodes("//li[@class='dropdown']");
+
+            var siteData = new SiteData();
+
+            //Get URL of all the cases
+            var caseDoc = new HtmlDocument();
+            caseDoc.LoadHtml(liData.Where(i => i.InnerHtml.ToLower().Contains("newest cases")).Select(i => i.InnerHtml).FirstOrDefault());
+            //Pull href out
+            siteData.CaseUrLs = caseDoc.DocumentNode.SelectNodes("//a").Select(n => n.Attributes["href"].Value).Where(n => n.Contains("/case/"));
+
+            //TODO Get URL of all knives
+            //TODO Get URL of all collections
+            //TODO Get number of souvenirs
+
+            return siteData;
+        }
+
+        private class SiteData
+        {
+            internal SiteData()
+            {
+                CaseUrLs = new List<string>();
+            }
+
+            public IEnumerable<string> CaseUrLs { get; set; }
+        } 
+
+
+        private static async Task<Dictionary<string, DataCollection>> ParseCases(IEnumerable<string> dataCaseUrLs)
+        {
+            List<string> pages = await HtmlFetcher.FetchUrls(dataCaseUrLs);
+
+            var csgoData = new Dictionary<string, DataCollection>();
             //Parse
             foreach (string page in pages)
             {
@@ -74,7 +117,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                         StringSplitOptions.None
                     );
 
-                    CaseData caseData = new CaseData();
+                    var caseData = new DataCollection();
 
                     //Filter to lines containing " | "
                     List<string> fLines = lines.Where(l => l.Contains(" | ")).ToList();
@@ -91,7 +134,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                             List<string> duoLineData = duoLineDataNodes.Select(i => i.InnerHtml).ToList();
 
                             //Concat into item name
-                            if (duoLineData.Any()) caseData.CaseItems.Add(string.Join(" | ", duoLineData)); //Weapon name | skin name
+                            if (duoLineData.Any()) caseData.Items.Add(string.Join(" | ", duoLineData)); //Weapon name | skin name
                         }
                     }
 
@@ -108,7 +151,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                     string caseCollection = ExtractStringFromTags(caseNodeData, "h4");
 
                     //Set the data for the return class
-                    caseData.CaseName = caseName;
+                    caseData.Name = caseName;
                     caseData.CaseCollection = caseCollection;
 
                     //Add items for case as list in dictionary if it does not exist
@@ -130,7 +173,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             Logger.Log("Extracting individual knife URLs from HTML...");
 
             //Pull the link <a></a> tags out of each page - store them to be used later
-            List<string> knifeUrls = new List<string>();
+            var knifeUrls = new List<string>();
             int pageindex = 0;
             foreach (var page in pages)
             {
@@ -145,7 +188,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                     doc.DocumentNode.SelectNodes("/html/body//a"); //Select the body before looking for all the a tags
 
                 //Filter the A-Tags to only ones with href
-                List<string> aTagHrefs = new List<string>();
+                var aTagHrefs = new List<string>();
                 foreach (var aTag in aTags)
                 {
                     string hrefVal = "";
@@ -174,7 +217,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
             Logger.Log("Extracting individual knife data from HTML...");
 
-            Dictionary<string, List<string>> knifeCaseData = new Dictionary<string, List<string>>();
+            var knifeCaseData = new Dictionary<string, List<string>>();
             foreach (string knifeDataPage in knifeDataList)
             {
                 HtmlDocument doc = new HtmlDocument();
@@ -199,17 +242,18 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                 
             }
 
-            Logger.Log("Done!");
             return knifeCaseData;
         }
 
-        private static async Task<Dictionary<string, List<string>>> ParseSouvenirs()
+        private static async Task<List<DataCollection>> ParseSouvenirs()
         {
             HtmlFetcher htmlFetcher = new HtmlFetcher();
 
-            List<string> pages = await htmlFetcher.FetchAscending("https://csgostash.com/containers/souvenir-packages?page=", 30, 2);
+            Logger.Log("Fetching Souvenirs...");
+
+            List<string> pages = await htmlFetcher.FetchAscending("https://csgostash.com/containers/souvenir-packages?page=", stopIndex: 2);
             
-            Dictionary<string, List<string>> souvenirCollections = new Dictionary<string, List<string>>(); //Collection name -- Item list
+            var souvenirCollections = new List<DataCollection>();
             //Parse through the souvenirs for names, and the collection
             foreach (string page in pages)
             {
@@ -246,24 +290,21 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                     HtmlDocument filteredDoc = new HtmlDocument();
                     filteredDoc.LoadHtml(filteredDiv); //Exception is likely from loading invalid HTML
 
-                    string souvenirCaseName = "";
-                    string souvenirCaseCollection = "";
-
                     //Extract case name
-                    souvenirCaseName = ExtractStringFromTags(filteredDoc, "a/h4");
+                    string souvenirCaseName = ExtractStringFromTags(filteredDoc, "a/h4");
 
                     //Extract case collection
-                    souvenirCaseCollection = ExtractStringFromTags(filteredDoc, "div/p/a").Replace("\n", ""); //Remove excess line break
+                    string souvenirCaseCollection = ExtractStringFromTags(filteredDoc, "div/p/a").Replace("\n", "");
 
                     //Add to souvenirCollections
-                    if (souvenirCollections.TryGetValue(souvenirCaseCollection, out _)) souvenirCollections[souvenirCaseCollection].Add(souvenirCaseName);
-                    else
-                    { //If souvenir collection does not exist, create one
-                        souvenirCollections.Add(souvenirCaseCollection, new List<string>
-                        {
-                            souvenirCaseName
-                        });
-                    }
+                    var souvenirCollection = new DataCollection()
+                    {
+                        Name = souvenirCaseName,
+                        CaseCollection = souvenirCaseCollection,
+                        IconUrL = "", //TODO Get icon UrL
+                    };
+
+                    souvenirCollections.Add(souvenirCollection);
                 }
             }
 
@@ -345,35 +386,27 @@ namespace Discord_UncrateGO_SkinCasesGenerator
         {
             public CsgoItemData()
             {
-                CaseData = new List<CaseData>();
-                CollectionData = new List<CollectionData>();
+                CaseData = new List<DataCollection>();
+                CollectionData = new List<DataCollection>();
+                SouvenirData = new List<DataCollection>();
             }
 
-            public List<CaseData> CaseData { get; set; }
-            public List<CollectionData> CollectionData { get; set; }
+            public List<DataCollection> CaseData { get; set; }
+            public List<DataCollection> CollectionData { get; set; }
+            public List<DataCollection> SouvenirData { get; set; }
         }
-        public class CaseData
+
+        public class DataCollection
         {
-            public CaseData()
+            public DataCollection()
             {
-                CaseItems = new List<string>();
+                Items = new List<string>();
             }
 
-            public string CaseName { get; set; }
+            public string Name { get; set; }
             public string CaseCollection { get; set; }
-            public List<string> CaseItems { get; set; }
-        }
-
-        public class CollectionData
-        {
-            public CollectionData()
-            {
-                CollectionItems = new List<string>();
-            }
-
-            public string ColletionName { get; set; }
-            public bool IsSouvenir { get; set; }
-            public List<string> CollectionItems { get; set; }
+            public string IconUrL{ get; set; }
+            public List<string> Items { get; set; }
         }
     }
 }
