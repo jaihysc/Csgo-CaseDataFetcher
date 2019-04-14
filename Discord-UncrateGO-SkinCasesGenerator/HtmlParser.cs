@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
 
@@ -9,33 +8,14 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 {
     internal static class HtmlParser
     {
-        private static readonly List<string> GlobalKnifeList = new List<string> //TODO, read this from a file
-        {
-            "Navaja+Knife",
-            "Stiletto+Knife",
-            "Talon+Knife",
-            "Ursus+Knife",
-            "Bayonet",
-            "Bowie+Knife",
-            "Butterfly+Knife",
-            "Falchion+Knife",
-            "Flip+Knife",
-            "Gut+Knife",
-            "Huntsman+Knife",
-            "Karambit",
-            "M9+Bayonet",
-            "Shadow+Daggers"
-        };
-
         public static async Task<CsgoItemData> FetchCaseItemData()
         {
             CsgoItemData csgoItemData = new CsgoItemData();
 
             SiteData data = await GetSiteData();
 
-            //TODO These methods should be more redundant to changes. pull the front page for the number of cases, pages, etc
-            Dictionary<string, DataCollection> caseResult = await ParseCases(data.CaseUrLs);
-            Dictionary<string, List<string>> knifeResult = await ParseKnives(GlobalKnifeList); 
+            Dictionary<string, DataCollection> caseResult = await ParseGridBlocks(data.CaseUrLs);
+            Dictionary<string, List<string>> knifeResult = await ParseKnives(data.KnifeUrLs);
 
             //sort the items from knife result into the distinctive caseResult cases
             Logger.Log("sorting knife data into cases...");
@@ -52,12 +32,15 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
             csgoItemData.CaseData = caseResult.Values.ToList();
 
-            //TODO fetch all collections
+            csgoItemData.CollectionData = (await ParseGridBlocks(data.CollectionUrLs)).Values.ToList(); //Get collections
             csgoItemData.SouvenirData = await ParseSouvenirs();
-            //TODO generate a dictionary containing all the collections and whether they are souvenirs
+
+            //TODO Get stickers
 
             return csgoItemData;
         }
+
+        #region Get site metadata for methods
 
         /// <summary>
         /// Fetches and returns information about the site that would later be used to parse cases
@@ -74,19 +57,31 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             IEnumerable<HtmlNode> liData =
                 doc.DocumentNode.SelectNodes("//li[@class='dropdown']");
 
-            var siteData = new SiteData();
-
-            //Get URL of all the cases
-            var caseDoc = new HtmlDocument();
-            caseDoc.LoadHtml(liData.Where(i => i.InnerHtml.ToLower().Contains("newest cases")).Select(i => i.InnerHtml).FirstOrDefault());
-            //Pull href out
-            siteData.CaseUrLs = caseDoc.DocumentNode.SelectNodes("//a").Select(n => n.Attributes["href"].Value).Where(n => n.Contains("/case/"));
-
-            //TODO Get URL of all knives
-            //TODO Get URL of all collections
-            //TODO Get number of souvenirs
+            var siteData = new SiteData
+            {
+                //Get URL data from dropdowns
+                CaseUrLs = GetDropdownOption(liData, "newest cases", "/case/"),
+                KnifeUrLs = GetDropdownOption(liData, "newest knives", "/weapon/"),
+                CollectionUrLs = GetDropdownOption(liData, "newest collections", "/collection/")
+                //TODO Get number of souvenirs
+            };
 
             return siteData;
+        }
+
+        /// <summary>
+        /// Filters the html nodes in the dropdown class to ones specified by filter
+        /// </summary>
+        /// <param name="htmlNodes"></param>
+        /// <param name="dropdownFilter"></param>
+        /// <param name="urLFilter"></param>
+        /// <returns></returns>
+        private static IEnumerable<string> GetDropdownOption(IEnumerable<HtmlNode> htmlNodes, string dropdownFilter, string urLFilter)
+        {
+            var doc = new HtmlDocument();
+            doc.LoadHtml(htmlNodes.Where(i => i.InnerHtml.ToLower().Contains(dropdownFilter)).Select(i => i.InnerHtml).FirstOrDefault());
+
+            return doc.DocumentNode.SelectNodes("//a").Select(n => n.Attributes["href"].Value).Where(n => n.Contains(urLFilter));
         }
 
         private class SiteData
@@ -94,83 +89,101 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             internal SiteData()
             {
                 CaseUrLs = new List<string>();
+                KnifeUrLs = new List<string>();
+                CollectionUrLs = new List<string>();
             }
 
             public IEnumerable<string> CaseUrLs { get; set; }
-        } 
+            public IEnumerable<string> KnifeUrLs { get; set; }
+            public IEnumerable<string> CollectionUrLs { get; set; }
+        }
 
+        #endregion
 
-        private static async Task<Dictionary<string, DataCollection>> ParseCases(IEnumerable<string> dataCaseUrLs)
+        /// <summary>
+        /// Parses through the block structure for item data and case name+collection
+        /// </summary>
+        /// <param name="caseUrLs"></param>
+        /// <returns></returns>
+        private static async Task<Dictionary<string, DataCollection>> ParseGridBlocks(IEnumerable<string> caseUrLs)
         {
-            List<string> pages = await HtmlFetcher.FetchUrls(dataCaseUrLs);
+            List<string> pages = await HtmlFetcher.FetchUrls(caseUrLs);
 
             var csgoData = new Dictionary<string, DataCollection>();
-            //Parse
             foreach (string page in pages)
             {
-                //Leave if the page is empty
-                if (!string.IsNullOrWhiteSpace(page))
+                //Get case name and collection
+                HtmlDocument htmlDoc = new HtmlDocument();
+                htmlDoc.LoadHtml(page);
+
+                //Get the data out of the <a3> tags
+                HtmlNode caseNodeData =
+                    htmlDoc.DocumentNode.SelectSingleNode(
+                        "//div[@class='inline-middle collapsed-top-margin']"); //inline-middle collapsed-top-margin
+
+                string caseName = ExtractStringFromTags(caseNodeData, "h1");
+                string caseCollection = ExtractStringFromTags(caseNodeData, "h4"); //img-responsive center-block content-header-img-margin
+
+                string iconUrL = ExtractImgSrc(htmlDoc, "img-responsive center-block content-header-img-margin");
+
+                var caseData = new DataCollection {Name = caseName, CaseCollection = caseCollection, IconUrL = iconUrL };
+
+                //If case name already exists, pass
+                if (csgoData.ContainsKey(caseName)) continue;
+                //Separate single string with line breaks into array
+                string[] lines = page.Split(
+                    new[] { "\r\n", "\r", "\n" },
+                    StringSplitOptions.None
+                );
+
+                //Filter to lines containing " | "
+                List<string> fLines = lines.Where(l => l.Contains(" | ")).ToList();
+                //Select the text out of the html
+                foreach (var dataDuoLines in fLines) //The 2 lines containing the item name and collection
                 {
-                    //Separate single string with line breaks into array
-                    string[] lines = page.Split(
-                        new[] { "\r\n", "\r", "\n" },
-                        StringSplitOptions.None
-                    );
-
-                    var caseData = new DataCollection();
-
-                    //Filter to lines containing " | "
-                    List<string> fLines = lines.Where(l => l.Contains(" | ")).ToList();
-                    //Select the text out of the html
-                    foreach (var dataDuoLines in fLines) //The 2 lines containing the item name and collection
-                    {
-                        HtmlDocument duoHtml = new HtmlDocument();
-                        duoHtml.LoadHtml(dataDuoLines);
-
-                        //Get the data out of the <a3> tags
-                        HtmlNodeCollection duoLineDataNodes = duoHtml.DocumentNode.SelectNodes("/h3/a");
-                        if (duoLineDataNodes != null && duoLineDataNodes.Any())
-                        {
-                            List<string> duoLineData = duoLineDataNodes.Select(i => i.InnerHtml).ToList();
-
-                            //Concat into item name
-                            if (duoLineData.Any()) caseData.Items.Add(string.Join(" | ", duoLineData)); //Weapon name | skin name
-                        }
-                    }
-
-                    //Get case name and collection
-                    HtmlDocument htmlDoc = new HtmlDocument();
-                    htmlDoc.LoadHtml(page);
+                    HtmlDocument duoHtml = new HtmlDocument();
+                    duoHtml.LoadHtml(dataDuoLines);
 
                     //Get the data out of the <a3> tags
-                    HtmlNode caseNodeData =
-                        htmlDoc.DocumentNode.SelectSingleNode(
-                            "//div[@class='inline-middle collapsed-top-margin']"); //inline-middle collapsed-top-margin
+                    HtmlNodeCollection duoLineDataNodes = duoHtml.DocumentNode.SelectNodes("/h3/a");
+                    if (duoLineDataNodes != null && duoLineDataNodes.Any())
+                    {
+                        List<string> duoLineData = duoLineDataNodes.Select(i => i.InnerHtml).ToList();
 
-                    string caseName = ExtractStringFromTags(caseNodeData, "h1");
-                    string caseCollection = ExtractStringFromTags(caseNodeData, "h4");
-
-                    //Set the data for the return class
-                    caseData.Name = caseName;
-                    caseData.CaseCollection = caseCollection;
-
-                    //Add items for case as list in dictionary if it does not exist
-                    if (!csgoData.TryGetValue(caseName, out _)) csgoData.Add(caseName, caseData);
+                        //Concat into item name
+                        if (duoLineData.Any()) caseData.Items.Add(string.Join(" | ", duoLineData)); //Weapon name | skin name
+                    }
                 }
+
+                if (!csgoData.TryGetValue(caseName, out _)) csgoData.Add(caseName, caseData);
             }
 
             return csgoData;
         }
 
-        private static async Task<Dictionary<string, List<string>>> ParseKnives(List<string> knifeList)
+        private static async Task<Dictionary<string, List<string>>> ParseKnives(IEnumerable<string> knifeUrLs)
         {
-            HtmlFetcher htmlFetcher = new HtmlFetcher();
-
             Logger.Log("Fetching master knives HTML...");
 
-            List<string> pages = await htmlFetcher.FetchUrlFillers("https://csgostash.com/weapon/", knifeList, 50);
+            List<string> knifeUrLsList = knifeUrLs.ToList();
+            List<string> pages = await HtmlFetcher.FetchUrls(knifeUrLsList);
 
             Logger.Log("Extracting individual knife URLs from HTML...");
+
+            var knifeNames = new List<string>();
+            //Extract the knife names by themselves from the list
+            foreach (string knifeUrL in knifeUrLsList)
+            {
+                for (int i = knifeUrL.Length - 1; i > 0; i--) //subtract 1 since array is 0 based
+                {
+                    if (knifeUrL[i] == '/')
+                    {
+                        knifeNames.Add(knifeUrL.Substring(i + 1, knifeUrL.Length - i - 1) //Offset forwards by 1 since this is 1 based
+                            .Replace("+", "-")); //the current knife name (E.G Navaja+Knife) which will be converted to navaja-knife
+                        break;
+                    }
+                }
+            }
 
             //Pull the link <a></a> tags out of each page - store them to be used later
             var knifeUrls = new List<string>();
@@ -196,11 +209,9 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                     if (!string.IsNullOrWhiteSpace(hrefVal)) aTagHrefs.Add(hrefVal); //Log the https links for further processing       
                 }
 
-                //Filter to only entries containing the current knife name (E.G Navaja+Knife) which will be converted to navaja-knife
-                string knifeName = knifeList[pageindex].Replace("+", "-"); //The generic name of the current knife whose page it is on
-
                 //Process the aTag hrefs to only those which are valid links
-                aTagHrefs = aTagHrefs.Where(t => t.Contains("http") && t.Contains("/skin/") && t.Contains(knifeName)).ToList(); //Only websites && only paths containing skin && has knife name
+                aTagHrefs = aTagHrefs.Where(t => t.Contains("http") && t.Contains("/skin/") 
+                                                                    && t.Contains(knifeNames[pageindex])).ToList(); //Only websites && only paths containing skin && has knife name
 
                 //Delete duplicates
                 aTagHrefs = aTagHrefs.Distinct().ToList();
@@ -213,7 +224,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             Logger.Log("Fetching individual knife HTML...");
 
             //Follow links pulled above to get the names of the actual knives
-            List<string> knifeDataList = await HtmlFetcher.FetchUrls(knifeUrls, 10);
+            List<string> knifeDataList = await HtmlFetcher.FetchUrls(knifeUrls);
 
             Logger.Log("Extracting individual knife data from HTML...");
 
@@ -247,10 +258,9 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
         private static async Task<List<DataCollection>> ParseSouvenirs()
         {
-            HtmlFetcher htmlFetcher = new HtmlFetcher();
-
             Logger.Log("Fetching Souvenirs...");
 
+            HtmlFetcher htmlFetcher = new HtmlFetcher();
             List<string> pages = await htmlFetcher.FetchAscending("https://csgostash.com/containers/souvenir-packages?page=", stopIndex: 2);
             
             var souvenirCollections = new List<DataCollection>();
@@ -267,26 +277,6 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                 //Extract name and collection
                 foreach (string filteredDiv in filteredDivs)
                 {
-                    #region Example response
-                    /*
-                    <a href="https://csgostash.com/item/13395/Katowice-2019-Nuke-Souvenir-Package">
-                       <h4>Katowice 2019 Nuke Souvenir Package</h4>
-                       <img class="img-responsive center-block" src="https://steamcommunity-a.akamaihd.net/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXU5A1PIYQNqhpOSV-fRPasw8rsWFxgKhNetb_3e1Y57OPafjBN09izq46enPK6YurQk2hVvcYi2u-W84qhiQOx_kVvYDzyJdWUJA88Ml_U-VfoxuzsjYj84sqZEQQDQg/256fx256f" alt="Katowice 2019 Nuke Souvenir Package">
-                       <div class="price margin-top-sm">
-                          <p class="nomargin"><span data-toggle="tooltip" data-placement="right" title="1 Key">CDN$ 5.08</span></p>
-                       </div>
-                    </a>
-                    <div class="btn-group-sm btn-group-justified">
-                       <a class="btn btn-default market-button-item" href="https://steamcommunity.com/market/listings/730/Katowice%202019%20Nuke%20Souvenir%20Package" target="_blank" rel="nofollow" data-gaevent="Katowice 2019 Nuke Souvenir Package">3956 Steam Market Listings</a>
-                    </div>
-                    <div class="containers-details-link">
-                       <p class="nomargin"><a href="https://csgostash.com/collection/The+2018+Nuke+Collection">
-                          <img src="https://csgostash.com/img/collections/the_2018_nuke_collection.png" class="collection-icon" alt="The 2018 Nuke Collection">
-                          The 2018 Nuke Collection</a>
-                       </p>
-                    </div>
-                    */
-                    #endregion
                     HtmlDocument filteredDoc = new HtmlDocument();
                     filteredDoc.LoadHtml(filteredDiv); //Exception is likely from loading invalid HTML
 
@@ -296,12 +286,14 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                     //Extract case collection
                     string souvenirCaseCollection = ExtractStringFromTags(filteredDoc, "div/p/a").Replace("\n", "");
 
+                    string iconUrL = ExtractImgSrc(doc, "img-responsive center-block");
+
                     //Add to souvenirCollections
                     var souvenirCollection = new DataCollection()
                     {
                         Name = souvenirCaseName,
                         CaseCollection = souvenirCaseCollection,
-                        IconUrL = "", //TODO Get icon UrL
+                        IconUrL = iconUrL
                     };
 
                     souvenirCollections.Add(souvenirCollection);
@@ -377,6 +369,13 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             }
 
             return returnStr;
+        }
+
+        private static string ExtractImgSrc(HtmlDocument htmlDoc, string className)
+        {
+            return htmlDoc.DocumentNode
+                .SelectNodes($"//img[@class='{className}']")
+                .Select(n => n.Attributes["src"].Value).FirstOrDefault();
         }
 
         private enum NodeSection { InnerText, InnerHtml, OuterHtml}
