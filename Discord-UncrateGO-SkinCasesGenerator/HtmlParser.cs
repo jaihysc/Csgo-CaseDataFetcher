@@ -14,7 +14,8 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
             SiteData data = await GetSiteData();
 
-            Dictionary<string, DataCollection> caseResult = await ParseGridBlocks(data.CaseUrLs);
+            //TODO method for gathering data could be less memory intensive, instead of grab all urls and parse, grab one and parse so it can then be disposed of
+            Dictionary<string, DataCollection> caseResult = await ParseGridBlocks(data.CaseUrLs); 
             Dictionary<string, List<string>> knifeResult = await ParseKnives(data.KnifeUrLs);
 
             //sort the items from knife result into the distinctive caseResult cases
@@ -33,7 +34,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             csgoItemData.CaseData = caseResult.Values.ToList();
 
             csgoItemData.CollectionData = (await ParseGridBlocks(data.CollectionUrLs)).Values.ToList(); //Get collections
-            csgoItemData.SouvenirData = await ParseSouvenirs();
+            csgoItemData.SouvenirData = await ParseSouvenirs(data.SouvenirUrLs);
 
             //TODO Get stickers
 
@@ -57,13 +58,22 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             IEnumerable<HtmlNode> liData =
                 doc.DocumentNode.SelectNodes("//li[@class='dropdown']");
 
+            //Generate the urLs for souvenirs
+            string baseSouvenirUrL = GetDropdownOption(liData, "newest cases", "souvenir-package").FirstOrDefault();
+            var souvenirUrLs = new List<string>();
+            int pageCount = await GetPaginationPagesCount(baseSouvenirUrL);
+            for (int i = 1; i < pageCount + 1; i++) //add 1 to be 1 based
+            {
+                souvenirUrLs.Add($"{baseSouvenirUrL}?page={i}");
+            }
+
             var siteData = new SiteData
             {
                 //Get URL data from dropdowns
                 CaseUrLs = GetDropdownOption(liData, "newest cases", "/case/"),
                 KnifeUrLs = GetDropdownOption(liData, "newest knives", "/weapon/"),
-                CollectionUrLs = GetDropdownOption(liData, "newest collections", "/collection/")
-                //TODO Get number of souvenirs
+                CollectionUrLs = GetDropdownOption(liData, "newest collections", "/collection/"),
+                SouvenirUrLs = souvenirUrLs
             };
 
             return siteData;
@@ -84,6 +94,26 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             return doc.DocumentNode.SelectNodes("//a").Select(n => n.Attributes["href"].Value).Where(n => n.Contains(urLFilter));
         }
 
+        private static async Task<int> GetPaginationPagesCount(string url)
+        {
+            var page = await HtmlFetcher.RetrieveFromUrl(url);
+
+            var doc = new HtmlDocument();
+            doc.LoadHtml(page);
+
+            doc.LoadHtml(doc.DocumentNode.SelectNodes("//ul[@class='pagination']").FirstOrDefault().InnerHtml); //Select and load the first pagination button
+            IEnumerable<string> innerText = doc.DocumentNode.SelectNodes("//li").Select(n => n.InnerText); //Extract the inner text from li options
+
+            //Cycle through each li and get the highest one
+            int highestVal = 1;
+            foreach (string s in innerText)
+            {
+                if (int.TryParse(s, out int val)) if (val > highestVal) highestVal = val;
+            }
+
+            return highestVal;
+        }
+
         private class SiteData
         {
             internal SiteData()
@@ -91,11 +121,13 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                 CaseUrLs = new List<string>();
                 KnifeUrLs = new List<string>();
                 CollectionUrLs = new List<string>();
+                SouvenirUrLs = new List<string>();
             }
 
             public IEnumerable<string> CaseUrLs { get; set; }
             public IEnumerable<string> KnifeUrLs { get; set; }
             public IEnumerable<string> CollectionUrLs { get; set; }
+            public IEnumerable<string> SouvenirUrLs { get; set; }
         }
 
         #endregion
@@ -256,12 +288,11 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             return knifeCaseData;
         }
 
-        private static async Task<List<DataCollection>> ParseSouvenirs()
+        private static async Task<List<DataCollection>> ParseSouvenirs(IEnumerable<string> souvenirUrLs)
         {
             Logger.Log("Fetching Souvenirs...");
 
-            HtmlFetcher htmlFetcher = new HtmlFetcher();
-            List<string> pages = await htmlFetcher.FetchAscending("https://csgostash.com/containers/souvenir-packages?page=", stopIndex: 2);
+            List<string> pages = await HtmlFetcher.FetchUrls(souvenirUrLs);
             
             var souvenirCollections = new List<DataCollection>();
             //Parse through the souvenirs for names, and the collection
