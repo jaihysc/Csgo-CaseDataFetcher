@@ -139,11 +139,11 @@ namespace Discord_UncrateGO_SkinCasesGenerator
         /// <returns></returns>
         private static async Task<Dictionary<string, DataCollection>> ParseGridBlocks(IEnumerable<string> caseUrLs)
         {
-            List<string> pages = await HtmlFetcher.FetchUrls(caseUrLs);
-
             var csgoData = new Dictionary<string, DataCollection>();
-            foreach (string page in pages)
+            foreach (string caseUrL in caseUrLs)
             {
+                string page = await HtmlFetcher.RetrieveFromUrl(caseUrL);
+
                 //Get case name and collection
                 HtmlDocument htmlDoc = new HtmlDocument();
                 htmlDoc.LoadHtml(page);
@@ -158,7 +158,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
                 string iconUrL = ExtractImgSrc(htmlDoc, "img-responsive center-block content-header-img-margin");
 
-                var caseData = new DataCollection {Name = caseName, CaseCollection = caseCollection, IconUrL = iconUrL };
+                var caseData = new DataCollection { Name = caseName, CaseCollection = caseCollection, IconUrL = iconUrL };
 
                 //If case name already exists, pass
                 if (csgoData.ContainsKey(caseName)) continue;
@@ -193,14 +193,13 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             return csgoData;
         }
 
-        private static async Task<Dictionary<string, List<string>>> ParseKnives(IEnumerable<string> knifeUrLs)
+        private static async Task<Dictionary<string, List<string>>> ParseKnives(IEnumerable<string> masterKnifeUrLs)
         {
-            Logger.Log("Fetching master knives HTML...");
+            masterKnifeUrLs = masterKnifeUrLs.ToList();
 
-            List<string> knifeUrLsList = knifeUrLs.ToList();
-            List<string> pages = await HtmlFetcher.FetchUrls(knifeUrLsList);
+            Logger.Log("Extracting knife names from URL...");
 
-            Logger.Log("Extracting individual knife URLs from HTML...");
+            List<string> knifeUrLsList = masterKnifeUrLs.ToList();
 
             var knifeNames = new List<string>();
             //Extract the knife names by themselves from the list
@@ -217,11 +216,15 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                 }
             }
 
+            Logger.Log("Fetching/extracting individual knife URLs from HTML...");
+
             //Pull the link <a></a> tags out of each page - store them to be used later
-            var knifeUrls = new List<string>();
+            var knifeUrLs = new List<string>();
             int pageindex = 0;
-            foreach (var page in pages)
+            foreach (string knifeUrL in masterKnifeUrLs)
             {
+                string page = await HtmlFetcher.RetrieveFromUrl(knifeUrL);
+
                 //Getting knife name
                 // => /body/div[1]/div[2]/div[0]
                 // => col-lg-12 text-center col-widen content-header => h1
@@ -242,30 +245,28 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                 }
 
                 //Process the aTag hrefs to only those which are valid links
-                aTagHrefs = aTagHrefs.Where(t => t.Contains("http") && t.Contains("/skin/") 
+                aTagHrefs = aTagHrefs.Where(t => t.Contains("http") && t.Contains("/skin/")
                                                                     && t.Contains(knifeNames[pageindex])).ToList(); //Only websites && only paths containing skin && has knife name
 
                 //Delete duplicates
                 aTagHrefs = aTagHrefs.Distinct().ToList();
 
-                aTagHrefs.ForEach(t => knifeUrls.Add(t)); //add to master url list
+                aTagHrefs.ForEach(t => knifeUrLs.Add(t)); //add to master url list
 
                 pageindex++;
             }
 
-            Logger.Log("Fetching individual knife HTML...");
-
             //Follow links pulled above to get the names of the actual knives
-            List<string> knifeDataList = await HtmlFetcher.FetchUrls(knifeUrls);
-
-            Logger.Log("Extracting individual knife data from HTML...");
+            Logger.Log("Fetching/extracting individual knife HTML...");
 
             var knifeCaseData = new Dictionary<string, List<string>>();
-            foreach (string knifeDataPage in knifeDataList)
+            foreach (string knifeUrL in knifeUrLs)
             {
+                string page = await HtmlFetcher.RetrieveFromUrl(knifeUrL);
+
                 HtmlDocument doc = new HtmlDocument();
 
-                doc.LoadHtml(knifeDataPage);
+                doc.LoadHtml(page);
 
                 //Extracting case data
                 List<string> knifeCases = doc.DocumentNode.SelectNodes("html/body//p")
@@ -282,7 +283,6 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                     //Add to dictionary
                     knifeCaseData.Add(knifeName, knifeCases);
                 }
-                
             }
 
             return knifeCaseData;
@@ -290,21 +290,21 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
         private static async Task<List<DataCollection>> ParseSouvenirs(IEnumerable<string> souvenirUrLs)
         {
-            Logger.Log("Fetching Souvenirs...");
+            Logger.Log("Fetching/parsing Souvenirs...");
 
-            List<string> pages = await HtmlFetcher.FetchUrls(souvenirUrLs);
-            
             var souvenirCollections = new List<DataCollection>();
             //Parse through the souvenirs for names, and the collection
-            foreach (string page in pages)
+            foreach (string souvenirUrL in souvenirUrLs.ToList())
             {
+                string page = await HtmlFetcher.RetrieveFromUrl(souvenirUrL);
+
                 HtmlDocument doc = new HtmlDocument();
                 doc.LoadHtml(page);
-                
+
                 //Filter to the class "well result-box nomargin"
                 List<string> filteredDivs = doc.DocumentNode.SelectNodes("html/body/div/div/div/div").Where(n =>
                     n.Attributes["class"].Value.Contains("well result-box nomargin")).Select(n => n.InnerHtml).ToList();
-                
+
                 //Extract name and collection
                 foreach (string filteredDiv in filteredDivs)
                 {
