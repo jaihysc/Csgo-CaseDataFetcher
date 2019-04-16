@@ -8,12 +8,16 @@ namespace Discord_UncrateGO_SkinCasesGenerator
     {
         static async Task Main(string[] args)
         {
-            var result = await HtmlParser.FetchCaseItemData();
+            Console.WriteLine("File output folder location: ");
+            string writePath = Console.ReadLine();
+            writePath += "/CsgoCosmeticData.json";
             
-            Logger.Log("Writing to file...");
-            Logger.LogToFile(JsonConvert.SerializeObject(result), @"path");
+            HtmlParser.CsgoItemData result = await HtmlParser.FetchCaseItemData();
+            
+            Logger.Log("Writing to " + writePath);
+            Logger.LogToFile(JsonConvert.SerializeObject(result), writePath);
 
-            Console.WriteLine("Press ENTER to exit");
+            Console.WriteLine("DONE -- Press ENTER to exit");
             Console.ReadLine();
         }
     }

@@ -14,7 +14,6 @@ namespace Discord_UncrateGO_SkinCasesGenerator
 
             SiteData data = await GetSiteData();
 
-            //TODO method for gathering data could be less memory intensive, instead of grab all urls and parse, grab one and parse so it can then be disposed of
             Dictionary<string, DataCollection> caseResult = await ParseGridBlocks(data.CaseUrLs); 
             Dictionary<string, List<string>> knifeResult = await ParseKnives(data.KnifeUrLs);
 
@@ -34,10 +33,10 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             csgoItemData.CaseData = caseResult.Values.ToList();
 
             csgoItemData.CollectionData = (await ParseGridBlocks(data.CollectionUrLs)).Values.ToList(); //Get collections
-            csgoItemData.SouvenirData = await ParseSouvenirs(data.SouvenirUrLs);
-
-            //TODO Get stickers
-
+            csgoItemData.SouvenirData = await ParseGridItems(data.SouvenirUrLs, "a/h4", "div/p/a");
+            csgoItemData.StickerData = await ParseGridItems(data.StickerUrLs, "h3/a", "//div[@class='margin-bot-sm']/p/a");
+            csgoItemData.TournamentStickerData = await ParseGridItems(data.TournamentStickerUrLs, "h3/a", "//div[@class='margin-bot-sm']/p/a");
+            
             return csgoItemData;
         }
 
@@ -58,27 +57,36 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             IEnumerable<HtmlNode> liData =
                 doc.DocumentNode.SelectNodes("//li[@class='dropdown']");
 
-            //Generate the urLs for souvenirs
-            string baseSouvenirUrL = GetDropdownOption(liData, "newest cases", "souvenir-package").FirstOrDefault();
-            var souvenirUrLs = new List<string>();
-            int pageCount = await GetPaginationPagesCount(baseSouvenirUrL);
-            for (int i = 1; i < pageCount + 1; i++) //add 1 to be 1 based
-            {
-                souvenirUrLs.Add($"{baseSouvenirUrL}?page={i}");
-            }
-
             var siteData = new SiteData
             {
                 //Get URL data from dropdowns
                 CaseUrLs = GetDropdownOption(liData, "newest cases", "/case/"),
                 KnifeUrLs = GetDropdownOption(liData, "newest knives", "/weapon/"),
                 CollectionUrLs = GetDropdownOption(liData, "newest collections", "/collection/"),
-                SouvenirUrLs = souvenirUrLs
+                
+                //Fetch the urLs for souvenirs, stickers, tournament stickers
+                SouvenirUrLs = await GetPaginationUrls(liData, "newest cases", "souvenir-package"),
+                StickerUrLs = await GetPaginationUrls(liData, "tournament stickers", "/stickers/regular"),
+                TournamentStickerUrLs = await GetPaginationUrls(liData, "tournament stickers", "/stickers/tournament")
             };
 
             return siteData;
         }
 
+        private static async Task<List<string>> GetPaginationUrls(IEnumerable<HtmlNode> htmlNodes, string dropdownFilter, string urlFilter)
+        {
+            //Fetch the urLs for souvenirs
+            string baseSouvenirUrL = GetDropdownOption(htmlNodes, dropdownFilter, urlFilter).FirstOrDefault();
+            var urls = new List<string>();
+            int pageCount = await GetPaginationPagesCount(baseSouvenirUrL);
+            for (int i = 1; i < pageCount + 1; i++) //add 1 to be 1 based
+            {
+                urls.Add($"{baseSouvenirUrL}?page={i}");
+            }
+
+            return urls;
+        }
+        
         /// <summary>
         /// Filters the html nodes in the dropdown class to ones specified by filter
         /// </summary>
@@ -101,7 +109,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             var doc = new HtmlDocument();
             doc.LoadHtml(page);
 
-            doc.LoadHtml(doc.DocumentNode.SelectNodes("//ul[@class='pagination']").FirstOrDefault().InnerHtml); //Select and load the first pagination button
+            doc.LoadHtml(doc.DocumentNode.SelectNodes("//ul[@class='pagination']").FirstOrDefault()?.InnerHtml); //Select and load the first pagination button
             IEnumerable<string> innerText = doc.DocumentNode.SelectNodes("//li").Select(n => n.InnerText); //Extract the inner text from li options
 
             //Cycle through each li and get the highest one
@@ -122,12 +130,17 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                 KnifeUrLs = new List<string>();
                 CollectionUrLs = new List<string>();
                 SouvenirUrLs = new List<string>();
+                StickerUrLs = new List<string>();
+                TournamentStickerUrLs = new List<string>();
             }
 
             public IEnumerable<string> CaseUrLs { get; set; }
             public IEnumerable<string> KnifeUrLs { get; set; }
             public IEnumerable<string> CollectionUrLs { get; set; }
             public IEnumerable<string> SouvenirUrLs { get; set; }
+            public IEnumerable<string> StickerUrLs { get; set; }
+            public IEnumerable<string> TournamentStickerUrLs { get; set; }
+
         }
 
         #endregion
@@ -288,7 +301,7 @@ namespace Discord_UncrateGO_SkinCasesGenerator
             return knifeCaseData;
         }
 
-        private static async Task<List<DataCollection>> ParseSouvenirs(IEnumerable<string> souvenirUrLs)
+        private static async Task<List<DataCollection>> ParseGridItems(IEnumerable<string> souvenirUrLs, string nameXpath, string collectionXpath)
         {
             Logger.Log("Fetching/parsing Souvenirs...");
 
@@ -312,18 +325,18 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                     filteredDoc.LoadHtml(filteredDiv); //Exception is likely from loading invalid HTML
 
                     //Extract case name
-                    string souvenirCaseName = ExtractStringFromTags(filteredDoc, "a/h4");
+                    string name = ExtractStringFromTags(filteredDoc, nameXpath);
 
                     //Extract case collection
-                    string souvenirCaseCollection = ExtractStringFromTags(filteredDoc, "div/p/a").Replace("\n", "");
+                    string itemCollection= ExtractStringFromTags(filteredDoc, collectionXpath).Replace("\n", "");
 
                     string iconUrL = ExtractImgSrc(doc, "img-responsive center-block");
 
                     //Add to souvenirCollections
                     var souvenirCollection = new DataCollection()
                     {
-                        Name = souvenirCaseName,
-                        CaseCollection = souvenirCaseCollection,
+                        Name = name,
+                        CaseCollection = itemCollection,
                         IconUrL = iconUrL
                     };
 
@@ -419,11 +432,17 @@ namespace Discord_UncrateGO_SkinCasesGenerator
                 CaseData = new List<DataCollection>();
                 CollectionData = new List<DataCollection>();
                 SouvenirData = new List<DataCollection>();
+                StickerData = new List<DataCollection>();
+                TournamentStickerData = new List<DataCollection>();
             }
 
             public List<DataCollection> CaseData { get; set; }
             public List<DataCollection> CollectionData { get; set; }
             public List<DataCollection> SouvenirData { get; set; }
+
+            public List<DataCollection> StickerData { get; set; }
+            public List<DataCollection> TournamentStickerData { get; set; }
+
         }
 
         public class DataCollection
